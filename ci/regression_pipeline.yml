@@ -37,14 +37,14 @@ resources:
     region_name: {{aws-region}}
     versioned_file: gpdb6/icw_gporca_centos6/regression_dump.sql.xz
 
-- name: backup_artifact_resource
+- name: regression_backups
   type: s3
   source:
     access_key_id: {{bucket-access-key-id}}
     bucket: {{test-data-bucket-name}}
     secret_access_key: {{bucket-secret-access-key}}
     region_name: {{aws-region}}
-    versioned_file: gpdb6/icw_gporca_centos6/gpbackup_all.tar.gz
+    versioned_file: gpdb6/icw_gporca_centos6/regression_backups.tar.gz
 
 - name: gpbackup
   type: git
@@ -137,29 +137,14 @@ jobs:
     #   trigger: true
       passed:
        - build_dependencies
-  # - put: terraform
-  #   params:
-  #     <<: *ccp_default_params
-  #     vars:
-  #       <<: *ccp_default_vars
-  # - task: gen_cluster
-  #   file: ccp_src/ci/tasks/gen_cluster.yml
-  #   params:
-  #     <<: *ccp_gen_cluster_default_params
-  #   input_mapping:
-  #     gpdb_binary: bin_gpdb
-  #     gpdb_src: gpdb_src
-  # - task: gpinitsystem
-  #   file: ccp_src/ci/tasks/gpinitsystem.yml
-  # - task: setup-centos-env
-  #   file: gpbackup/ci/tasks/setup-centos-env-gpdb6.yml
   - task: load_regressionDB_into_cluster
     file: gpbackup/ci/tasks/gpbackup-regression.yml
     input_mapping:
       sqldump: icw_gporca_centos6_dump
-  - put: backup_artifact_resource
+      bin_gpdb: bin_gpdb6
+  - put: regression_backups
     params:
-      file: artifacts/gpbackup_regression_data.tar.gz
+      file: artifacts/regression_backups.tar.gz
   - put: regression_dump
     params:
       file: artifacts/regression_dump.sql.xz
@@ -176,7 +161,7 @@ jobs:
     - get: gpdb_src
     - get: ccp_src
     - get: icw_gporca_centos6_dump
-    - get: backup_artifact_resource
+    - get: regression_backups
       passed:
        - gpbackup-gpdb6-ICW-regression-DB
     - get: regression_dump

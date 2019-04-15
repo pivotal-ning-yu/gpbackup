@@ -9,8 +9,6 @@ image_resource:
 inputs:
 - name: gpbackup
   path: go/src/github.com/greenplum-db/gpbackup
-# - name: ccp_src
-# - name: cluster_env_files
 - name: gpdb_src
 - name: sqldump
 - name: bin_gpdb
@@ -24,6 +22,8 @@ run:
   - -c
   - |
     set -ex
+
+    mv bin_gpdb/*.tar.gz bin_gpdb/bin_gpdb.tar.gz
 
     source gpdb_src/concourse/scripts/common.bash
 
@@ -44,6 +44,6 @@ run:
     sudo -u gpadmin go/src/github.com/greenplum-db/gpbackup/ci/scripts/generate_backup_artifact.bash
 
     cp /tmp/regression_dump.sql.xz  artifacts/.
-    cp /tmp/backup_artifact.tar.gz artifacts/.
+    cp /tmp/regression_backups.tar.gz artifacts/.
 
-    tar czvf artifacts/gpbackup_regression_data.tar.gz -C artifacts/
+    # tar czvf artifacts/gpbackup_regression_data.tar.gz -C regression_artifacts/

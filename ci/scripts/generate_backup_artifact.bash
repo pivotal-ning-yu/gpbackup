@@ -15,7 +15,7 @@ pushd $GOPATH/src/github.com/greenplum-db/gpbackup
   version=`git describe --tags | perl -pe 's/(.*)-([0-9]*)-(g[0-9a-f]*)/\1+dev.\2.\3/'`
 popd
 
-mkdir -p /tmp/backup_artifact # parent dir for all backups
+mkdir -p /tmp/regression_backups # parent dir for all backups
 
 echo "##### Loading sqldump into DB #####"
 psql -d postgres -f ./sqldump/dump.sql >/dev/null
@@ -47,7 +47,7 @@ while read -r dbname ; do
     [[ "regression" != "${dbname}" ]] && continue
 
     db_index=${REGRESSION_DB_INDEX}
-    dir="/tmp/backup_artifact/${db_index}"
+    dir="/tmp/regression_backups/${db_index}"
     mkdir "${dir}"
 
     echo "##### Backing up database: ${dbname} #####"
@@ -56,5 +56,5 @@ done < /tmp/db_names
 
 # create tarball of all backups by backing up parent dir
 pushd /tmp
-    tar -czvf backup_artifact.tar.gz backup_artifact
+    tar -czvf /tmp/regression_backups.tar.gz regression_backups
 popd
