@@ -79,6 +79,12 @@ resources:
     branch: 5X_STABLE
     tag_filter: 5.*
 
+- name: gpdb5_src_head
+  type: git
+  source:
+    uri: https://github.com/greenplum-db/gpdb
+    branch: 5X_STABLE
+
 - name: gpdb6_src
   type: git
   source:
@@ -107,6 +113,18 @@ resources:
   source:
       bucket: gpdb-stable-concourse-builds
       versioned_file: release_candidates/bin_gpdb_centos6/gpdb5/bin_gpdb.tar.gz
+      region_name: us-west-2
+      access_key_id: {{bucket-access-key-id}}
+      secret_access_key: {{bucket-secret-access-key}}
+
+# We use this intermediate binary in an effort to catch possible
+# inconsistencies (between a new gpdb5 bin and a fixed version of gpbackup)
+# before a final release_candidate is generated & shipped
+- name: bin_gpdb_5x_stable_intermediate
+  type: s3
+  source:
+      bucket: gpdb5-stable-concourse-builds
+      versioned_file: bin_gpdb_centos/bin_gpdb.tar.gz
       region_name: us-west-2
       access_key_id: {{bucket-access-key-id}}
       secret_access_key: {{bucket-secret-access-key}}
@@ -821,6 +839,45 @@ jobs:
     file: gpbackup/ci/tasks/integration-tests.yml
     params:
       GPBACKUP_VERSION: "1.7.1"
+  on_success:
+    <<: *ccp_destroy
+  on_failure:
+    *slack_alert
+  ensure:
+    <<: *set_failed
+
+# Ensure compatibility between a new gpdb5 binary and a fixed version of gpbackup
+- name: 5X-head-gpbackup-fixed-test
+  plan:
+  - aggregate:
+    - get: gpbackup
+    - get: bin_gpdb_5x_stable_intermediate
+      trigger: true
+    - get: ccp_src
+    - get: gpdb5_src_head
+    - get: gpbackup-dependencies
+      passed:
+       - build_dependencies
+  - put: terraform
+    params:
+      <<: *ccp_default_params
+      vars:
+        <<: *ccp_default_vars
+  - task: gen_cluster
+    params:
+      <<: *ccp_gen_cluster_default_params
+    file: ccp_src/ci/tasks/gen_cluster.yml
+    input_mapping:
+      gpdb_binary: bin_gpdb_5x_stable_intermediate
+      gpdb_src: gpdb5_src_head
+  - task: gpinitsystem
+    file: ccp_src/ci/tasks/gpinitsystem.yml
+  - task: setup-centos-env
+    file: gpbackup/ci/tasks/setup-centos-env.yml
+  - task: gpbackup-1.12.1-test
+    file: gpbackup/ci/tasks/integration-tests-fixed-version.yml
+    params:
+      GPBACKUP_VERSION: "1.12.1"
   on_success:
     <<: *ccp_destroy
   on_failure:
