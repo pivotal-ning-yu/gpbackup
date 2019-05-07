@@ -278,21 +278,6 @@ jobs:
     params:
         file: output_deps/dependencies.tar.gz
 
-- name: units
-  plan:
-  - aggregate:
-    - get: gpbackup
-      trigger: true
-    - get: nightly-trigger
-      trigger: true
-    - get: gpbackup-dependencies
-      passed:
-       - build_dependencies
-  - task: unit-tests
-    file: gpbackup/ci/tasks/unit-tests.yml
-    on_failure:
-      *slack_alert
-
 - name: s3_plugin_tests
   plan:
   - aggregate:
@@ -951,7 +936,6 @@ jobs:
     # tests are passing
     - get: gpbackup
       passed:
-        - units
         - integrations-GPDB5
         - integrations-GPDB4.3
         - integrations-GPDB5-sles
