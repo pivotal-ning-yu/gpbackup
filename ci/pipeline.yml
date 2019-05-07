@@ -142,6 +142,13 @@ resources:
       access_key_id: {{bucket-access-key-id}}
       secret_access_key: {{bucket-secret-access-key}}
 
+- name: bin_gpdb_6x_stable_centos6
+  type: gcs
+  source:
+      bucket: ((gcs-bucket))
+      json_key: ((concourse-gcs-resources-service-account-key))
+      regexp: server/published/gpdb6/server-rc-(.*)-rhel6_x86_64((rc-build-type-gcs)).tar.gz
+
 - name: bin_gpdb_6x_stable_centos7
   type: gcs
   source:
@@ -748,6 +755,42 @@ jobs:
       input_mapping:
         gpdb_src: gpdb5_src
         bin_gpdb: bin_gpdb_5x_stable_centos7
+  on_failure:
+    *slack_alert
+
+- name: integrations-GPDB6
+  plan:
+  - aggregate:
+    - get: centos6-image
+    - get: centos7-image
+    - get: gpbackup
+      trigger: true
+    - get: gpbackup-dependencies
+      passed:
+       - build_dependencies
+    - get: bin_gpdb_6x_stable_centos6
+    - get: bin_gpdb_6x_stable_centos7
+    - get: gpdb6_src
+    - get: nightly-trigger
+      trigger: true
+    - get: dummy_seclabel_gpdb_linux
+  - aggregate:
+    - task: run-tests-locally-centos6
+      image: centos6-image
+      file: gpbackup/ci/tasks/test-on-local-cluster.yml
+      params:
+        IS_GPDB6: true
+      input_mapping:
+        gpdb_src: gpdb6_src
+        bin_gpdb: bin_gpdb_6x_stable_centos6
+    - task: run-tests-locally-centos7
+      image: centos7-image
+      file: gpbackup/ci/tasks/test-on-local-cluster.yml
+      params:
+        IS_GPDB6: true
+      input_mapping:
+        gpdb_src: gpdb6_src
+        bin_gpdb: bin_gpdb_6x_stable_centos7
   on_failure:
     *slack_alert
 
