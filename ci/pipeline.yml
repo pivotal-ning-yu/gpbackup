@@ -101,12 +101,18 @@ resources:
     branch: 6X_STABLE
     tag_filter: 6.*
 
-- name: bin_gpdb6
+- name: gpdb_master_src
+  type: git
+  source:
+    uri: https://github.com/greenplum-db/gpdb
+    branch: master
+
+- name: bin_gpdb_master_centos6
   type: gcs
   source:
       bucket: ((gcs-bucket))
       json_key: ((concourse-gcs-resources-service-account-key))
-      regexp: server/published/gpdb6/server-rc-(.*)-rhel6_x86_64((rc-build-type-gcs)).tar.gz
+      regexp: server/published/master/server-rc-(.*)-rhel6_x86_64((rc-build-type-gcs)).tar.gz
 
 - name: gpbackup-dependencies
   type: s3
@@ -689,9 +695,9 @@ jobs:
   - aggregate:
     - get: gpbackup
       trigger: true
-    - get: bin_gpdb6
+    - get: bin_gpdb_master_centos6
     - get: ccp_src
-    - get: gpdb5_src
+    - get: gpdb_master_src
     - get: dummy_seclabel
     - get: nightly-trigger
       trigger: true
@@ -708,8 +714,8 @@ jobs:
     params:
       <<: *ccp_gen_cluster_default_params
     input_mapping:
-      gpdb_binary: bin_gpdb6
-      gpdb_src: gpdb5_src
+      gpdb_binary: bin_gpdb_master_centos6
+      gpdb_src: gpdb_master_src
   - task: gpinitsystem
     file: ccp_src/ci/tasks/gpinitsystem.yml
   - task: setup-centos-env
@@ -880,9 +886,9 @@ jobs:
   plan:
   - aggregate:
     - get: gpbackup
-    - get: bin_gpdb6
+    - get: bin_gpdb_master_centos6
     - get: ccp_src
-    - get: gpdb5_src
+    - get: gpdb_master_src
     - get: scale_schema
     - get: nightly-trigger
       trigger: true
@@ -901,8 +907,48 @@ jobs:
       <<: *ccp_gen_cluster_default_params
     file: ccp_src/ci/tasks/gen_cluster.yml
     input_mapping:
-      gpdb_binary: bin_gpdb6
-      gpdb_src: gpdb5_src
+      gpdb_binary: bin_gpdb_master_centos6
+      gpdb_src: gpdb_master_src
+  - task: gpinitsystem
+    file: ccp_src/ci/tasks/gpinitsystem.yml
+  - task: setup-centos-env
+    file: gpbackup/ci/tasks/setup-centos-env.yml
+  - task: scale-tests
+    file: gpbackup/ci/tasks/scale-tests.yml
+  on_success:
+    <<: *ccp_destroy_nvme
+  on_failure:
+    *slack_alert
+  ensure:
+    <<: *set_failed
+
+- name: scale-6x-stable
+  plan:
+  - aggregate:
+    - get: gpbackup
+    - get: bin_gpdb_6x_stable_centos6
+    - get: ccp_src
+    - get: gpdb6_src
+    - get: scale_schema
+    - get: nightly-trigger
+      trigger: true
+    - get: gpbackup-dependencies
+      passed:
+       - build_dependencies
+  - put: terraform
+    params:
+      <<: *ccp_default_params
+      terraform_source: ccp_src/google-nvme-block-device/
+      vars:
+        instance_type: n1-standard-8
+        ccp_reap_minutes: 720
+  - task: gen_cluster
+    params:
+      <<: *ccp_gen_cluster_default_params
+    file: ccp_src/ci/tasks/gen_cluster.yml
+    input_mapping:
+      gpdb_binary: bin_gpdb_6x_stable_centos6
+      gpdb_src: gpdb6_src
   - task: gpinitsystem
     file: ccp_src/ci/tasks/gpinitsystem.yml
   - task: setup-centos-env
@@ -1014,7 +1060,7 @@ jobs:
         - s3_plugin_tests
         - ddboost_plugin_and_boostfs_tests
     - get: gpdb6_src
-    - get: bin_gpdb6
+    - get: bin_gpdb_6x_stable_centos6
     - get: gpbackup-dependencies
   - task: compile_package
     file: gpbackup/ci/tasks/compile_package.yml
@@ -1028,7 +1074,7 @@ jobs:
     file: gpbackup/ci/tasks/build-gppkg.yml
     input_mapping:
       gpdb_src: gpdb6_src
-      bin_gpdb: bin_gpdb6
+      bin_gpdb: bin_gpdb_6x_stable_centos6
     on_failure:
       *slack_alert
   - aggregate:
