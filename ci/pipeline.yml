@@ -130,6 +130,15 @@ resources:
     json_key: ((gcp_svc_acct_key))
     regexp: dummy_seclabel-v(.*).so
 
+- name: bin_gpdb_5x_stable_sles11
+  type: s3
+  source:
+      access_key_id: {{bucket-access-key-id}}
+      bucket: {{gpdb-stable-builds-bucket-name}}
+      region_name: {{aws-region}}
+      secret_access_key: {{bucket-secret-access-key}}
+      versioned_file: release_candidates/bin_gpdb_sles11/gpdb5/bin_gpdb.tar.gz
+
 - name: bin_gpdb_5x_stable_centos6
   type: s3
   source:
@@ -604,45 +613,6 @@ jobs:
   ensure:
       <<: *ddboost_ccp_destroy
 
-- name: integrations-GPDB5-sles
-  plan:
-  - aggregate:
-    - get: gpbackup
-      trigger: true
-    - get: bin_gpdb_5x_stable_centos6
-    - get: ccp_src
-    - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
-    - get: gpbackup-dependencies
-      passed:
-       - build_dependencies
-  - put: terraform
-    params:
-      <<: *ccp_default_params
-      vars:
-        <<: *ccp_default_vars
-        PLATFORM: sles12
-        default_image_user: root
-  - task: gen_cluster
-    params:
-      <<: *ccp_gen_cluster_default_params
-      PLATFORM: sles12
-    file: ccp_src/ci/tasks/gen_cluster.yml
-    input_mapping:
-      gpdb_binary: bin_gpdb_5x_stable_centos6
-      gpdb_src: gpdb5_src
-  - task: gpinitsystem
-    file: ccp_src/ci/tasks/gpinitsystem.yml
-  - task: integration-tests
-    file: gpbackup/ci/tasks/sles-tests.yml
-  on_success:
-    <<: *ccp_destroy
-  on_failure:
-    *slack_alert
-  ensure:
-    <<: *set_failed
-
 - name: integrations-GPDB5-oracle7
   plan:
   - aggregate:
@@ -741,9 +711,28 @@ jobs:
        - build_dependencies
     - get: bin_gpdb_5x_stable_centos6
     - get: bin_gpdb_5x_stable_centos7
+    - get: bin_gpdb_5x_stable_sles11
     - get: gpdb5_src
     - get: nightly-trigger
       trigger: true
+    - get: ccp_src
+  - put: terraform
+    params:
+      <<: *ccp_default_params
+      vars:
+        <<: *ccp_default_vars
+        PLATFORM: sles12
+        default_image_user: root
+  - task: gen_cluster
+    params:
+      <<: *ccp_gen_cluster_default_params
+      PLATFORM: sles12
+    file: ccp_src/ci/tasks/gen_cluster.yml
+    input_mapping:
+      gpdb_binary: bin_gpdb_5x_stable_sles11
+      gpdb_src: gpdb5_src
+  - task: gpinitsystem
+    file: ccp_src/ci/tasks/gpinitsystem.yml
   - aggregate:
     - task: run-tests-locally-centos6
       image: centos6-image
@@ -761,8 +750,14 @@ jobs:
       input_mapping:
         gpdb_src: gpdb5_src
         bin_gpdb: bin_gpdb_5x_stable_centos7
+    - task: sles11
+      file: gpbackup/ci/tasks/sles-tests.yml
+  on_success:
+    <<: *ccp_destroy
   on_failure:
     *slack_alert
+  ensure:
+    <<: *set_failed
 
 - name: integrations-GPDB6
   plan:
@@ -1053,7 +1048,6 @@ jobs:
       passed:
         - integrations-GPDB5
         - integrations-GPDB4.3
-        - integrations-GPDB5-sles
         - integrations-GPDB5-oracle7
         - integrations-master
         - integrations-backward-compatibility
