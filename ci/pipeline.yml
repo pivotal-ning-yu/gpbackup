@@ -849,6 +849,8 @@ jobs:
   ensure:
     <<: *set_failed
     <<: *set_failed_aws
+    input_mapping:
+      terraform_aws: terraform_oracle
 
 - name: integrations-GPDB6
   plan:
