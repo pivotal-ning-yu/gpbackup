@@ -38,13 +38,13 @@ resources:
     tag: '6-gcc6.2-llvm3.7'
 
 ##### Other Resources #####
-- name: nightly-trigger
-  type: time
-  source:
-    location: America/Los_Angeles
-    days: [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday]
-    start: 6:00 AM
-    stop: 7:00 AM
+#- name: nightly-trigger
+#  type: time
+#  source:
+#    location: America/Los_Angeles
+#    days: [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday]
+#    start: 6:00 AM
+#    stop: 7:00 AM
 
 - name: gpbackup
   type: git
@@ -139,6 +139,15 @@ resources:
       secret_access_key: {{bucket-secret-access-key}}
       versioned_file: release_candidates/bin_gpdb_sles11/gpdb5/bin_gpdb.tar.gz
 
+# - name: bin_gpdb_5x_stable_oracle7
+#   type: s3
+#   source:
+#       access_key_id: {{bucket-access-key-id}}
+#       bucket: {{gpdb-stable-builds-bucket-name}}
+#       region_name: {{aws-region}}
+#       secret_access_key: {{bucket-secret-access-key}}
+#       versioned_file: release_candidates/bin_gpdb_sles11/gpdb5/bin_gpdb.tar.gz
+
 - name: bin_gpdb_5x_stable_centos6
   type: s3
   source:
@@ -202,6 +211,40 @@ resources:
       region_name: {{aws-region}}
       bucket: {{tf-bucket-name}}
       bucket_path: clusters-google/
+
+- name: terraform_sles
+  type: terraform
+  source:
+    env:
+      AWS_ACCESS_KEY_ID: {{tf-machine-access-key-id}}
+      AWS_SECRET_ACCESS_KEY: {{tf-machine-secret-access-key}}
+      GOOGLE_CREDENTIALS: {{google-service-account-key}}
+    vars:
+      project_id: {{google-project-id}}
+    storage:
+      access_key_id: {{tf-machine-access-key-id}}
+      secret_access_key: {{tf-machine-secret-access-key}}
+      region_name: {{aws-region}}
+      bucket: {{tf-bucket-name}}
+      bucket_path: clusters-google/
+
+- name: terraform_oracle
+  type: terraform
+  source:
+    env:
+      AWS_ACCESS_KEY_ID: {{tf-machine-access-key-id}}
+      AWS_SECRET_ACCESS_KEY: {{tf-machine-secret-access-key}}
+      GOOGLE_CREDENTIALS: {{google-service-account-key}}
+    vars:
+      project_id: {{google-project-id}}
+    storage:
+      access_key_id: {{tf-machine-access-key-id}}
+      secret_access_key: {{tf-machine-secret-access-key}}
+      region_name: {{aws-region}}
+      # This is not parameterized, on purpose. All tfstates will go to this spot,
+      # and different teams will place there clusters' tfstate files under different paths
+      bucket: gpdb5-pipeline-dynamic-terraform
+      bucket_path: clusters-aws/
 
 - name: ddboost_terraform
   type: terraform
@@ -320,8 +363,8 @@ jobs:
     - get: gpbackup
       trigger: true
     - get: gpbackup-dependencies
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
   - task: build-dependencies
     file: gpbackup/ci/tasks/build-dependencies.yml
     attempts: 5
@@ -339,8 +382,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: bin_gpdb_5x_stable_centos6
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -438,8 +481,8 @@ jobs:
       tags: ["ddboost"]
     - get: boostfs_installer
       tags: ["ddboost"]
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       tags: ["ddboost"]
       passed:
@@ -621,8 +664,8 @@ jobs:
     - get: bin_gpdb_5x_stable_centos7
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -669,8 +712,8 @@ jobs:
     - get: ccp_src
     - get: gpdb_master_src
     - get: dummy_seclabel
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -712,27 +755,66 @@ jobs:
     - get: bin_gpdb_5x_stable_centos6
     - get: bin_gpdb_5x_stable_centos7
     - get: bin_gpdb_5x_stable_sles11
+    # - get: bin_gpdb_5x_stable_oracle7
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: ccp_src
-  - put: terraform
-    params:
-      <<: *ccp_default_params
-      vars:
-        <<: *ccp_default_vars
-        PLATFORM: sles12
-        default_image_user: root
-  - task: gen_cluster
-    params:
-      <<: *ccp_gen_cluster_default_params
-      PLATFORM: sles12
-    file: ccp_src/ci/tasks/gen_cluster.yml
+  - aggregate:
+      - put: terraform_sles
+        params:
+          <<: *ccp_default_params
+          vars:
+            <<: *ccp_default_vars
+            PLATFORM: sles12
+            default_image_user: root
+      - put: terraform_oracle
+        params:
+          <<: *ccp_default_params_aws
+          vars:
+            <<: *ccp_default_vars_aws
+            PLATFORM: oracle7
+            default_ami_user: clckwrk
+            disk_size: 30
+  - aggregate:
+      - task: gen_cluster_sles
+        params:
+          <<: *ccp_gen_cluster_default_params
+          PLATFORM: sles12
+        file: ccp_src/ci/tasks/gen_cluster.yml
+        input_mapping:
+          terraform: terraform_sles
+          gpdb_binary: bin_gpdb_5x_stable_sles11
+          gpdb_src: gpdb5_src
+        output_mapping:
+          cluster_env_files: cluster_env_files_sles
+      - task: gen_cluster_oracle
+        tags: ['aws']
+        file: ccp_src/ci/tasks/gen_cluster.yml
+        input_mapping:
+          terraform: terraform_oracle
+          gpdb_binary: bin_gpdb_5x_stable_centos7
+          gpdb5_src: gpdb5_src
+        params:
+          <<: *ccp_gen_cluster_default_params_aws
+          PLATFORM: oracle7
+        output_mapping:
+          cluster_env_files: cluster_env_files_oracle
+  - aggregate:
+      - task: gpinitsystem_sles
+        file: ccp_src/ci/tasks/gpinitsystem.yml
+        input_mapping:
+          cluster_env_files: cluster_env_files_sles
+      - task: gpinitsystem_oracle
+        tags: ['aws']
+        file: ccp_src/ci/tasks/gpinitsystem.yml
+        input_mapping:
+          cluster_env_files: cluster_env_files_oracle
+  - task: setup-oracle-env
+    tags: ['aws']
+    file: gpbackup/ci/tasks/setup-oracle-env.yml
     input_mapping:
-      gpdb_binary: bin_gpdb_5x_stable_sles11
-      gpdb_src: gpdb5_src
-  - task: gpinitsystem
-    file: ccp_src/ci/tasks/gpinitsystem.yml
+      cluster_env_files: cluster_env_files_oracle
   - aggregate:
     - task: run-tests-locally-centos6
       image: centos6-image
@@ -750,14 +832,23 @@ jobs:
       input_mapping:
         gpdb_src: gpdb5_src
         bin_gpdb: bin_gpdb_5x_stable_centos7
-    - task: sles11
+    - task: test-sles11
       file: gpbackup/ci/tasks/sles-tests.yml
+      input_mapping:
+        cluster_env_files: cluster_env_files_sles
+    - task: test-oracle7
+      tags: ['aws']
+      file: gpbackup/ci/tasks/integration-tests.yml
+      input_mapping:
+        cluster_env_files: cluster_env_files_oracle
   on_success:
     <<: *ccp_destroy
+    <<: *ccp_destroy_aws
   on_failure:
     *slack_alert
   ensure:
     <<: *set_failed
+    <<: *set_failed_aws
 
 - name: integrations-GPDB6
   plan:
@@ -772,8 +863,8 @@ jobs:
     - get: bin_gpdb_6x_stable_centos6
     - get: bin_gpdb_6x_stable_centos7
     - get: gpdb6_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: dummy_seclabel_gpdb_linux
   - aggregate:
     - task: run-tests-locally-centos6
@@ -803,8 +894,8 @@ jobs:
     - get: bin_gpdb_43_stable
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -841,8 +932,8 @@ jobs:
     - get: bin_gpdb_5x_stable_centos6
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -885,8 +976,8 @@ jobs:
     - get: ccp_src
     - get: gpdb_master_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -925,8 +1016,8 @@ jobs:
     - get: ccp_src
     - get: gpdb6_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -965,8 +1056,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -1004,8 +1095,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
