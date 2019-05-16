@@ -23,13 +23,13 @@ resource_types:
     tag: latest-final
 
 resources:
-- name: nightly-trigger
-  type: time
-  source:
-    location: America/Los_Angeles
-    days: [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday]
-    start: 6:00 AM
-    stop: 7:00 AM
+#- name: nightly-trigger
+#  type: time
+#  source:
+#    location: America/Los_Angeles
+#    days: [Sunday, Monday, Tuesday, Wednesday, Thursday, Friday]
+#    start: 6:00 AM
+#    stop: 7:00 AM
 
 - name: gpbackup
   type: git
@@ -276,8 +276,8 @@ jobs:
     - get: gpbackup
       trigger: true
     - get: gpbackup-dependencies
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
   - task: build-dependencies
     file: gpbackup/ci/tasks/build-dependencies.yml
     attempts: 5
@@ -290,8 +290,8 @@ jobs:
   - aggregate:
     - get: gpbackup
       trigger: true
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -310,8 +310,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: bin_gpdb_5x_stable
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -409,8 +409,8 @@ jobs:
       tags: ["ddboost"]
     - get: boostfs_installer
       tags: ["ddboost"]
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       tags: ["ddboost"]
       passed:
@@ -592,8 +592,8 @@ jobs:
     - get: bin_gpdb_5x_stable
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -631,8 +631,8 @@ jobs:
     - get: bin_gpdb_5x_stable_centos7
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -679,8 +679,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: dummy_seclabel
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -717,8 +717,8 @@ jobs:
     - get: bin_gpdb_5x_stable
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -755,8 +755,8 @@ jobs:
     - get: bin_gpdb_43_stable
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -793,8 +793,8 @@ jobs:
     - get: bin_gpdb_5x_stable
     - get: ccp_src
     - get: gpdb5_src
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -834,79 +834,20 @@ jobs:
   - aggregate:
     - get: gp_backup_manager_src
       trigger: true
-    # - get: gpbackup
-    #   trigger: true
-    # - get: ccp_src
-    # - get: gpdb_src
-    # - get: bin_gpdb_5x_stable
-    # - get: nightly-trigger
-    #   trigger: true
-    # - get: gpbackup-dependencies
-    #   passed:
-    #    - build_dependencies
-  # - put: terraform
-    # params:
-    #   <<: *ccp_default_params
-    #   vars:
-    #     <<: *ccp_default_vars
-  # - task: gen_cluster
-    # file: ccp_src/ci/tasks/gen_cluster.yml
-    # params:
-    #   <<: *ccp_gen_cluster_default_params
-    # input_mapping:
-    #   gpdb_binary: bin_gpdb_5x_stable
-    #   gpdb_src: gpdb_src
-  # - task: gpinitsystem
-    # file: ccp_src/ci/tasks/gpinitsystem.yml
-  # - task: setup-centos-env
-    # file: gpbackup/ci/tasks/setup-centos-env.yml
+    - get: gpbackup
+    - get: bin_gpdb6
+    - get: ccp_src
+    - get: gpdb6_src
+    - get: gpbackup-dependencies
+      passed:
+       - build_dependencies
+#    # - get: nightly-trigger
+#    #   trigger: true
   - task: run_tests
-    config:
-      platform: linux
-      inputs:
-       # - name: gpbackup
-       #   path: go/src/github.com/greenplum-db/gpbackup
-       - name: gp_backup_manager_src
-         path: go/src/github.com/pivotal/gp-backup-manager
-       - name: ccp_src
-       # - name: cluster_env_files
-
-      image_resource:
-        type: docker-image
-        source:
-          repository: golang
-          tag: '1.10.3'
-      run:
-        path: bash
-        args:
-        - -c
-        - |
-          set -ex
-
-          # ccp_src/scripts/setup_ssh_to_cluster.sh
-          scp -r go/src/github.com/pivotal/gp-backup-manager mdw:/home/gpadmin/go/src/github.com/pivotal/gp-backup-manager
-
-          cat <<SCRIPT > /tmp/run_tests.bash
-            set -ex
-            source env.sh
-
-            cd \$GOPATH/src/github.com/greenplum-db
-            pushd gp-backup-manager
-              make depend
-              make unit
-              make build
-            popd
-          SCRIPT
-
-          chmod +x /tmp/run_tests.bash
-          scp /tmp/run_tests.bash mdw:/home/gpadmin/run_tests.bash
-          ssh -t mdw "bash /home/gpadmin/run_tests.bash"
-    # on_success:
-    #   <<: *ccp_destroy
-    on_failure:
-      *slack_alert
-  ensure:
-    <<: *set_failed
+    file: gpbackup/ci/tasks/test-gpbackup-manager.yml
+    input_mapping:
+      gpdb_src: gpdb6_src
+      bin_gpdb: bin_gpdb6
 
 - name: scale-master
   plan:
@@ -916,8 +857,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -956,8 +897,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
@@ -995,8 +936,8 @@ jobs:
     - get: ccp_src
     - get: gpdb5_src
     - get: scale_schema
-    - get: nightly-trigger
-      trigger: true
+#    - get: nightly-trigger
+#      trigger: true
     - get: gpbackup-dependencies
       passed:
        - build_dependencies
