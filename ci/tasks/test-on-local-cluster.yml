@@ -51,7 +51,7 @@ run:
       source $(pwd)/gpdb_src/gpAux/gpdemo/gpdemo-env.sh
       export GOPATH=\$HOME/go
       # reference PATH defined by parent shell
-      export PATH=$PATH:\$PATH:\$GOPATH/bin
+      export PATH=/usr/local/go/bin:$PATH:\$PATH:\$GOPATH/bin
 
       if $IS_GPDB6 ; then
         # sec label
