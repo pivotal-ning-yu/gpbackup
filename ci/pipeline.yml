@@ -609,7 +609,7 @@ jobs:
   ensure:
       <<: *ddboost_ccp_destroy
 
-- name: GPDB5-sles
+- name: GPDB5-sles11
   plan:
   - aggregate:
     - get: gpbackup
@@ -637,6 +637,45 @@ jobs:
     input_mapping:
       gpdb_binary: bin_gpdb_5x_stable_centos6
       gpdb_src: gpdb5_src
+  - task: gpinitsystem
+    file: ccp_src/ci/tasks/gpinitsystem.yml
+  - task: integration-tests
+    file: gpbackup/ci/tasks/sles-tests.yml
+  on_success:
+    <<: *ccp_destroy
+  on_failure:
+    *slack_alert
+  ensure:
+    <<: *set_failed
+
+- name: GPDB6-sles11
+  plan:
+  - aggregate:
+    - get: gpbackup
+      trigger: true
+    - get: bin_gpdb_6x_stable_centos6
+    - get: ccp_src
+    - get: gpdb6_src
+    - get: nightly-trigger
+      trigger: true
+    - get: gpbackup-dependencies
+      passed:
+       - build_dependencies
+  - put: terraform
+    params:
+      <<: *ccp_default_params
+      vars:
+        <<: *ccp_default_vars
+        PLATFORM: sles12
+        default_image_user: root
+  - task: gen_cluster
+    params:
+      <<: *ccp_gen_cluster_default_params
+      PLATFORM: sles12
+    file: ccp_src/ci/tasks/gen_cluster.yml
+    input_mapping:
+      gpdb_binary: bin_gpdb_6x_stable_centos6
+      gpdb_src: gpdb6_src
   - task: gpinitsystem
     file: ccp_src/ci/tasks/gpinitsystem.yml
   - task: integration-tests
@@ -685,6 +724,60 @@ jobs:
   - task: setup-oracle-env
     tags: ['aws']
     file: gpbackup/ci/tasks/setup-oracle-env.yml
+    params:
+      REQUIRES_DUMMY_SEC: false
+  - task: integration-tests
+    tags: ['aws']
+    file: gpbackup/ci/tasks/integration-tests.yml
+  on_success:
+    <<: *ccp_destroy_aws
+  on_failure:
+    *slack_alert
+  ensure:
+    <<: *set_failed_aws
+
+- name: GPDB6-oracle7
+  plan:
+  - aggregate:
+    - get: gpbackup
+      trigger: true
+    - get: bin_gpdb_6x_stable_centos7
+    - get: ccp_src
+    - get: gpdb6_src
+    - get: nightly-trigger
+      trigger: true
+    - get: gpbackup-dependencies
+      passed:
+       - build_dependencies
+    - get: dummy_seclabel_linux_gpdb6
+  - put: terraform_aws
+    params:
+      <<: *ccp_default_params_aws
+      vars:
+        <<: *ccp_default_vars_aws
+        PLATFORM: oracle7
+        default_ami_user: clckwrk
+        disk_size: 30
+  - task: gen_cluster
+    tags: ['aws']
+    file: ccp_src/ci/tasks/gen_cluster.yml
+    input_mapping:
+      terraform: terraform_aws
+      gpdb_binary: bin_gpdb_6x_stable_centos7
+      gpdb5_src: gpdb6_src
+    params:
+      <<: *ccp_gen_cluster_default_params_aws
+      PLATFORM: oracle7
+  - task: gpinitsystem
+    tags: ['aws']
+    file: ccp_src/ci/tasks/gpinitsystem.yml
+  - task: setup-oracle-env
+    tags: ['aws']
+    file: gpbackup/ci/tasks/setup-oracle-env.yml
+    input_mapping:
+      dummy_seclabel: dummy_seclabel_linux_gpdb6
+    params:
+      REQUIRES_DUMMY_SEC: true
   - task: integration-tests
     tags: ['aws']
     file: gpbackup/ci/tasks/integration-tests.yml
@@ -1062,8 +1155,11 @@ jobs:
       passed:
         - GPDB5
         - GPDB4.3
-        - GPDB5-sles
+        - GPDB6
+        - GPDB5-sles11
+        - GPDB6-sles11
         - GPDB5-oracle7
+        - GPDB6-oracle7
         - master
         - backward-compatibility
         - s3_plugin_tests
