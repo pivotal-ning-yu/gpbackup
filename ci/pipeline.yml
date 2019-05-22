@@ -1,4 +1,57 @@
 ---
+groups:
+- name: All
+  jobs:
+  - GPDB4.3
+  - GPDB5
+  - GPDB5-oracle7
+  - GPDB5-sles11
+  - GPDB6
+  - GPDB6-oracle7
+  - GPDB6-sles11
+  - master
+  - s3_plugin_tests
+  - backward-compatibility
+  - ddboost_plugin_and_boostfs_tests
+  - scale-43
+  - scale-5x
+  - scale-6x
+  - scale-master
+  - build_dependencies
+  - push-to-github
+  - package_gpbackup_for_release
+  - push-to-pivnet-gpbackup
+- name: GPDB4.3
+  jobs:
+  - GPDB4.3
+- name: GPDB5
+  jobs:
+  - GPDB5
+  - GPDB5-oracle7
+  - GPDB5-sles11
+  - s3_plugin_tests
+  - ddboost_plugin_and_boostfs_tests
+- name: GPDB6
+  jobs:
+  - GPDB6
+  - GPDB6-oracle7
+  - GPDB6-sles11
+- name: Master
+  jobs:
+  - master
+  - backward-compatibility
+- name: Scale
+  jobs:
+  - scale-43
+  - scale-5x
+  - scale-6x
+  - scale-master
+- name: Packaging and Release
+  jobs:
+  - push-to-github
+  - package_gpbackup_for_release
+  - push-to-pivnet-gpbackup
+
 resource_types:
 - name: terraform
   type: docker-image
